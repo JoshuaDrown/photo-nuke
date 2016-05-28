@@ -7,75 +7,74 @@ import os
 logger = logging.getLogger(__name__)
 
 
-# Added this to start to deal with videos.
-def video_move(indir,outdir):
-    videotypes = '.mp4', '.mov', '.mts', '.avi', '.thm' ,'.mpg', '.m4v'
-    outdir = os.path.join(outdir,'Videos')
-    os.chdir(indir)
-    for f in os.listdir(os.curdir):
-#        f = os.path.join(dirpath,f)
-        suffix = os.path.splitext(f.lower())[1]
-        if suffix in videotypes:
-            os.renames(f,os.path.join(outdir,f))
-            logger.info('IM A VIDEO')
+VIDEO_EXTENSIONS = '.mp4', '.mov', '.mts', '.avi', '.thm' ,'.mpg', '.m4v'
+PHOTO_EXTENSIONS = '.jpg', '.nef', '.tif', '.png', '.bmp'
+EXTENSIONS = [VIDEO_EXTENSIONS + PHOTO_EXTENSIONS]
+
+
+def get_extension(filename):
+    extension = os.path.splitext(filename.lower())[1]
+    return extension
+
+def get_date(d):
+    exifdata = pyexiv2.metadata.ImageMetadata(d)
+    exifdata.read()
+    if 'Exif.Photo.DateTimeOriginal' in exifdata.exif_keys:
+        dateTag = exifdata['Exif.Photo.DateTimeOriginal']
+    elif 'Exif.Image.DateTime' in exifdata.exif_keys:
+        dateTag = exifdata['Exif.Image.DateTime']
+    else:
+        logger.warning('A suitable date/time stamp could not be found for {}.'.format(filename))
+        return 'None'
+#thanks to smart people at stackoverflow.com for this next little gem.
+    date = dict((k.strip(), v.strip())
+            for k,v in (item.split(':')
+            for item in dateTag.value.strftime(
+                'year:%Y, month:%m, day:%d, hour:%H, min:%M, sec:%S').split(',')))
+    return date
+
+
+# Added this to start to deal with videos. Pyexiv2 does not support video.
+def video_move(indir,outdir,filename):
+    os.renames(filename,os.path.join(outdir,'videos',filename))
+    logger.info('IM A VIDEO')
 
 
 # read EXIF data for date of photo creation then rename the file with
 # it's date/timeand move it to it's proper year/month directory
 def meta_move(indir,outdir):
-    phototypes = '.jpg', '.nef', '.tif', '.png', '.bmp'
     try:
         os.chdir(indir)
         for f in os.listdir(os.curdir):
-#            f = os.path.join(dirpath,f)
-            suffix = os.path.splitext(f.lower())[1]
-# if suffix is jpg, nef, tif, etc...
-            try:
-                if suffix in phototypes:
-                    exifdata = pyexiv2.metadata.ImageMetadata(f)
-                    exifdata.read()
-                    dateTag = exifdata['Exif.Photo.DateTimeOriginal']
-                    newname = dateTag.value.strftime('%Y%m%d_%H%M%S') + suffix
-                    yeardir = dateTag.value.strftime('%Y')
-                    monthdir = dateTag.value.strftime('%m')
-# Check for file existance here, then move.
-                    if os.path.isfile(os.path.join(outdir,yeardir,monthdir,newname)):
-                        os.remove(f)
-                        logger.warn('{} has already been placed in the library.'.format(f))
-                    else:
-                        logger.info('Moving {} to {}'.format(f, os.path.join(outdir,yeardir,monthdir,newname)))
-                        os.renames(f,os.path.join(outdir,yeardir,monthdir,newname))
+            extension = get_extension(f)
+            if extension in PHOTO_EXTENSIONS:
+                datetime = get_date(f)
+                if 'None' in datetime:
+                    newpath = os.path.join(outdir, 'nodate', f)
                 else:
-                    video_move(indir,outdir)
-
-            except KeyError as keyerr:
-                logger.warn(outdir)
-                logger.warn('Key error: Exif.Photo.DateTimeOriginal' + str(keyerr) + ' for ' + f)
-                logger.warn('Trying to process {} with Exif.Image.DateTime'.format(f))
-# This next bit is a complete mess. Looks like I need to define another function
-                try:
-                   dateTag = exifdata['Exif.Image.DateTime']
-                   newname = dateTag.value.strftime('%Y%m%d_%H%M%S') + suffix
-                   newname = dateTag.value.strftime('%Y%m%d_%H%M%S') + suffix
-                   yeardir = dateTag.value.strftime('%Y')
-                   monthdir = dateTag.value.strftime('%m')
-                   if os.path.isfile(os.path.join(outdir,yeardir,monthdir,newname)):
-                       os.remove(f)
-                       logger.warn('{} has already been placed in the library.'.format(f))
-                   else:
-                       logger.info('Moving {} to {}'.format(f, os.path.join(outdir,yeardir,monthdir,newname)))
-                       os.renames(f,os.path.join(outdir,yeardir,monthdir,newname))
-                except KeyError as anothererr:
-                    logger.warn(outdir +" " + str(anothererr))
-                    os.renames(f,os.path.join(outdir,'nodate',f))
-
-
-# Begin crude error handling...
+                    newname = '{}{}{}_{}{}{}'.format(
+                            datetime['year'],
+                            datetime['month'],
+                            datetime['day'],
+                            datetime['hour'],
+                            datetime['min'],
+                            datetime['sec']) + extension
+                    newpath = os.path.join(
+                            outdir,
+                            datetime['year'],
+                            datetime['month'],
+                            newname)
+                if os.path.isfile(newpath):
+                    os.remove(f)
+                    logger.warn('{} has already been placed in the library.'.format(f))
+                else:
+                    logger.info('Moving {} to {}'.format(f, newpath))
+                    os.renames(f, newpath)
+            elif extension in VIDEO_EXTENSIONS:
+                video_move(indir,outdir,f)
     except IOError as ioerr:
         logger.warn('File error: ' + str(ioerr))
         pass
-#    except OSError as oserr:
-#        logger.warn('OS error: ' + str(oserr))
 
 
 def main():
@@ -101,9 +100,8 @@ def main():
     logger.info('Placing processed files in: {}'.format(args.target_path))
 
     for dirpath, dirnames, filenames in os.walk(args.source_path, topdown=False):
-        indir = dirpath
-        logger.info('PROCESSING {}'.format(indir))
-        meta_move(indir, args.target_path)
+        logger.info('PROCESSING {}'.format(dirpath))
+        meta_move(dirpath, args.target_path)
 
 
 if __name__ == "__main__":
