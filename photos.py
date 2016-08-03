@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 VIDEO_EXTENSIONS = '.mp4', '.mov', '.mts', '.avi', '.thm' ,'.mpg', '.m4v'
-PHOTO_EXTENSIONS = '.jpg', '.nef', '.tif', '.png', '.bmp'
+PHOTO_EXTENSIONS = '.jpg', '.nef', '.tif', '.png', '.bmp', '.raw', 'crw', 'dng'
 EXTENSIONS = [VIDEO_EXTENSIONS + PHOTO_EXTENSIONS]
 
 
