@@ -1,0 +1,29 @@
+2016/05/27
+thinking about the interface from tias mackbook to the mintbox today. 
+seems like the way to do this is to host a webpage on mintbox that will give the user the ability to upload their photos. The webpage should open an ssh or ftp session from the macbook to the mintbox. The user should be able to choose the client directory the photos are coming from and the host directory the photos are going to. An option to check for duplicates should also be present.
+
+Duplicate checking will probably need to be done via a record of sha1 hashes generated during previous uploads since EXIF data will change when the photos are manipulated after upload and filenames will also be changed.
+
+2016/07/22
+This will really only work if I name the files with their SHA1 hashes and check incoming hash values against the values currently in the directory.
+
+On the subject of checking hash values... it would behove me to create a database of some sort with all of the photo metadata for quick lookup for duplicates.
+
+Hash values make crappy filenames...especially when you want to find the file manually. This was my biggest gripe with iPhoto and other photo management apps-you could never find the file on your own. I think the solution is to create a date-time stamp link to the sha1 named file.
+
+I also think I should switch to python 3...Many of the EXIF readers for python2.6/2.7 are heading into deprication, and I'm not sure that the librarys they depend on will translate well accross platforms. Enter Phil Harvey's ExifTool. It's perl, and supported accross all platforms. or I could rely on the exiv2 library...
+
+GExiv2 looks like the exif reader I'll be working with. 
+
+Looking at an EXIF tag dump of a .NEF file, it looks like there are a few types of tags:
+	EXIF.Image
+	EXIF.Photo
+	EXIF.SubImage1&2	
+An older JPEG yeilded this tag dump:
+	EXIF.Image
+	EXIF.Photo
+It would appear that all photos will have the following EXIF in common:
+	EXIF.Image (information about the image data [resolution, orientation, camera make/model, etc])
+	EXIF.Photo (information about the picture taking conditions [Exposure, aperature, metering flash, zoom, etc])
+Also of interest: EXIF.Gps (gps data obviously)
+It also appears that each camera manufacturer has a set of proprietary EXIF tags which may hold useful information.
